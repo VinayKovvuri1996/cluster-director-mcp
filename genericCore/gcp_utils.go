@@ -16,9 +16,12 @@ package genericCore
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"golang.org/x/oauth2/google"
 )
 
 var authToken string
@@ -30,24 +33,26 @@ func GetGCloudToken() bool {
 		return true
 	}
 
-	WriteToLog("Executing 'gcloud auth print-access-token' to get bearer token...")
+	WriteToLog("Fetching OAuth2 bearer token natively via ADC...")
 
-	// Prepare the command
-	cmd := exec.Command("gcloud", "auth", "print-access-token")
+	// Use the default context and cloud-platform scope
+	ctx := context.Background()
+	scopes := []string{"https://www.googleapis.com/auth/cloud-platform"}
 
-	// Run the command and capture its output
-	output, err := cmd.Output()
+	ts, err := google.DefaultTokenSource(ctx, scopes...)
 	if err != nil {
-		// If 'gcloud' is not installed or not in the PATH, this will fail.
-		// It can also fail if the user is not authenticated.
-		WriteToLog(fmt.Sprintf("Error running gcloud command: %v", err))
+		WriteToLog(fmt.Sprintf("Failed to find Default Token Source: %v", err))
 		return false
 	}
 
-	// The output is a byte slice, so we convert it to a string and
-	// trim any trailing newline or whitespace.
-	authToken = strings.TrimSpace(string(output))
-	WriteToLog("Successfully retrieved access token.")
+	token, err := ts.Token()
+	if err != nil {
+		WriteToLog(fmt.Sprintf("Error retrieving native token: %v", err))
+		return false
+	}
+
+	authToken = token.AccessToken
+	WriteToLog("Successfully retrieved access token natively.")
 	return true
 }
 

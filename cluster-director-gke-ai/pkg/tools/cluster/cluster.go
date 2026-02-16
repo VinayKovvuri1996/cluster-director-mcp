@@ -17,7 +17,6 @@ package cluster
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -32,6 +31,7 @@ import (
 
 	"cloud.google.com/go/logging"
 	"cloud.google.com/go/logging/logadmin"
+	"golang.org/x/oauth2/google"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -108,7 +108,9 @@ func Install(s *mcp.Server, c *config.Config) {
 	}
 
 	// sets authToken
-	getGCloudToken()
+	genericCore.GetGCloudToken()
+
+	go genericCore.GetGCloudRegionsAndZones(context.Background(), c.GetDefaultProjectID())
 
 	// A place where we keep temporary files
 	createScratchDir()
@@ -701,46 +703,18 @@ func slurpFile(fileName string) (string, error) {
 	return string(content), err
 }
 
-// gcloudListItem represents a single item from the gcloud list command's JSON output.
-type gcloudListItem struct {
-	Name string `json:"name"`
-}
-
-// getGCloudRegionsAndZones fetches all available GCP regions and zones using the gcloud CLI.
-// It returns a list of region names, a list of zone names, and an error if one occurred.
-func getGCloudRegionsAndZones() ([]string, []string, error) {
-	regions, err := runGcloudListCommand("regions")
-	if err != nil {
-		return nil, nil, fmt.Errorf("Could not get regions: %w", err)
-	}
-
-	zones, err := runGcloudListCommand("zones")
-	if err != nil {
-		return nil, nil, fmt.Errorf("Could not get zones : %w", err)
-	}
-
-	return regions, zones, nil
-}
-
 // Executes a 'gcloud compute <resource> list' command and returns the names.
 func runGcloudListCommand(resource string) ([]string, error) {
-	cmd := exec.Command("gcloud", "compute", resource, "list", "--format=json")
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("gcloud command for %s failed: %w", resource, err)
+	ctx := context.Background()
+	// Retrieve project ID natively from the environment/ADC
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	if projectID == "" {
+		// Fallback to finding it natively if env is not set
+		credentials, _ := google.FindDefaultCredentials(ctx)
+		projectID = credentials.ProjectID
 	}
 
-	var items []gcloudListItem
-	if err := json.Unmarshal(output, &items); err != nil {
-		return nil, fmt.Errorf("failed to parse gcloud output for %s: %w", resource, err)
-	}
-
-	names := make([]string, len(items))
-	for i, item := range items {
-		names[i] = item.Name
-	}
-
-	return names, nil
+	return genericCore.RunGcloudListCommand(ctx, projectID, resource)
 }
 
 func filterString(rawSSHOut string, substringsToRemove []string) string {
