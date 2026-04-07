@@ -1,0 +1,1 @@
+Do not use gcloud or shell commands for information GCE VM instances, reservations and their status. Use the GCE MCP server instead

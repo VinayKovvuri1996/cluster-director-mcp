@@ -269,7 +269,7 @@ func getClustersInRegionIfExists(region string, projectID string) {
 	region2ClusterNames[region] = []string{}
 	bodyString, success := genericCore.QueryURLAndGetResult(genericCore.GetCachedAuthToken(), url)
 	genericCore.WriteToLog(fmt.Sprintf("Response received from Cluster Director API for region %s (Payload Size: %d bytes)", region, len(bodyString)))
-	if success && strings.Contains(bodyString, "storages") {
+	if success && strings.Contains(bodyString, "\"clusters\"") {
 		var parsedClusterData ClustersResponse
 		err := json.Unmarshal([]byte(bodyString), &parsedClusterData)
 		MostRecentClusterData[region] = &parsedClusterData
