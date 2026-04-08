@@ -1,0 +1,16 @@
+0: === HOST: $(hostname) ===
+0: --- OS Release ---
+0: PRETTY_NAME="Ubuntu 22.04.5 LTS"
+0: --- GPU Info ---
+0: No devices were found
+0: --- PyTorch Version ---
+1: === HOST: $(hostname) ===
+1: --- OS Release ---
+1: PRETTY_NAME="Ubuntu 22.04.5 LTS"
+1: --- GPU Info ---
+1: No devices were found
+1: --- PyTorch Version ---
+0: PyTorch not installed
+0: ==========================
+1: PyTorch not installed
+1: ==========================

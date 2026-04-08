@@ -1,0 +1,24 @@
+[
+  {
+    "prompt": "Show me the recent 10 logs for project ns-playground-a.",
+    "response": {
+      "name": "mcp_google-logging-mcp_list_log_entries",
+      "args": {
+        "resourceNames": ["projects/ns-playground-a"],
+        "orderBy": "timestamp desc",
+        "pageSize": 10
+      },
+      "resultDisplay": {
+        "entries": [
+          {
+            "resource": {
+              "labels": {
+                "project_id": "ns-playground-a"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+]

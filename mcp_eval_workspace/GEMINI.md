@@ -1,0 +1,1 @@
+Do not use gcloud or shell commands. Use the MCP servers.
