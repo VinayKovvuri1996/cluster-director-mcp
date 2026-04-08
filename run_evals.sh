@@ -30,10 +30,11 @@ cd "$EVAL_DIR"
 
 # 3. Execute the raw Python script
 python3 mcpeval.py \
-  --golden_prompts_responses="$TEST_JSON" \
+  --golden_prompts_responses="./test_data/gce_1p.json" \
   --gemini_cli_path="$GEMINI_CLI" \
-  --context="Do not use gcloud or shell commands for information GCE VM instances, reservations and their status. Use the GCE MCP server instead" \
-  --remotemcpjson='"google-compute-mcp": { "httpUrl": "https://compute.googleapis.com/mcp", "authProviderType": "google_credentials", "oauth": { "scopes": [ "https://www.googleapis.com/auth/compute.readonly" ] }, "trust": true,  "timeout": 60000 }' \
+  --context="Do not use gcloud or shell commands. Use the MCP servers." \
+  --remotemcpjson='"google-compute-mcp": { "httpUrl": "https://compute.googleapis.com/mcp", "authProviderType": "google_credentials", "oauth": { "scopes": [ "https://www.googleapis.com/auth/compute.readonly" ] }, "trust": true }' \
+  --remotemcpjson='"google-logging-mcp": { "httpUrl": "https://logging.googleapis.com/mcp", "authProviderType": "google_credentials", "oauth": { "scopes": [ "https://www.googleapis.com/auth/logging.read" ] }, "trust": true }' \
   --google_account=True
 
 echo "--------------------------------------------------------"

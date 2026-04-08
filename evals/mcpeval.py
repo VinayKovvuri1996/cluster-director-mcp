@@ -1,4 +1,4 @@
-"""Example script demonstrating command line arguments in standard Python."""
+"""Example script demonstrating command line arguments in google3."""
 
 from collections.abc import Sequence
 from absl import app
@@ -13,7 +13,6 @@ from typing import List, Dict, Any
 from pathlib import Path
 import pydash
 
-# Import local parser instead of google3
 import extract_tool_call
 
 # Define flags
@@ -27,15 +26,13 @@ _GOOGLE_ACCOUNT = flags.DEFINE_bool(name="google_account", default=False, help="
 
 def run_ls(directory):
     try:
-        result = subprocess.run(['/bin/ls', '-latr', directory], 
-                                capture_output=True, text=True, check=True)
+        result = subprocess.run(['/bin/ls', '-latr', directory], capture_output=True, text=True, check=True)
         print(result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Command failed with error code {e.returncode}")
         print(f"Error message: {e.stderr}")
 
 def load_jsonl_data(file_path: str) -> tuple[List[Dict[str, Any]], bool]:
-    """Loads prompt-response pairs from a JSON file."""
     data = []
     original_wd = get_working_directory()
     if original_wd and not os.path.isabs(file_path):
@@ -90,7 +87,6 @@ def check_file_exists(filepath) -> bool:
         return False
 
 def write_context_to_file(file_path: str) -> None:
-    """Writes the main context string to the specified file."""
     if _MAIN_CONTEXT.value:
         if can_write_file(file_path):
             with open(file_path, "w") as f:
@@ -113,17 +109,18 @@ def create_dot_gemini_dir_write_settings_file() -> bool:
 
         test_file_path = os.path.join(full_path, "settings.json")
         
-        # Notice: The "security" block is completely removed here.
-        # This forces the CLI to use your global authentication.
         with open(test_file_path, 'w') as f:
             f.write("{ \n"
                     "  \"mcpServers\": { \n")
+            
+            mcp_servers_entries = []
             for json_text in _LOCAL_MCP_JSON.value:
-                f.write("\t"  + json_text + "\n")
+                mcp_servers_entries.append(json_text)
             for json_text in _REMOTE_MCP_JSON.value:
-                f.write("\t"  + json_text + "\n")
-            f.write("   } \n")
-            f.write("} \n")
+                mcp_servers_entries.append(json_text)
+            
+            f.write(",\n".join(mcp_servers_entries))
+            f.write("\n   } \n} \n")
 
         print(f"Created test file: {test_file_path}")
     except OSError as e:
@@ -141,8 +138,15 @@ def create_local_files_and_dirs_needed() -> bool:
     return True
 
 def get_working_directory() -> str:
-    """Returns the working directory."""
-    return str(os.getcwd())
+    if is_in_docker():
+        return "./"  
+    elif os.getenv('BUILD_WORKING_DIRECTORY'):
+        return str(os.getenv('BUILD_WORKING_DIRECTORY'))
+    else:
+        return str(os.getcwd())
+
+def is_in_docker() -> bool:
+    return os.path.exists('/.dockerenv')
 
 def compare_test_results(full_testrun_data: Dict[str, Any], expected_subset_data: Dict[str, Any]) -> bool:
     return pydash.is_match(full_testrun_data, expected_subset_data)
@@ -155,6 +159,7 @@ def run_one_testcase(one_testcase: Any) -> float:
     log_file_stdout = os.path.join(temp_dir, "gemini_cli.log.stdout")
     log_file_stderr = os.path.join(temp_dir, "gemini_cli.log.stderr")
 
+    # Use the local binary path passed in from the flag
     gemini_cli_path = _CLI_PATH.value
     command = f'{gemini_cli_path} --debug -p "{prompt}" 1> {log_file_stdout} 2> {log_file_stderr}'
 
@@ -163,9 +168,10 @@ def run_one_testcase(one_testcase: Any) -> float:
     return_score = 0.0
     try:
         print("Running subprocess.run")
-        subprocess.run(command, shell=True, check=True)
+        subprocess.run(command, shell=True, check=False, cwd=get_working_directory())
 
         if not check_file_exists(log_file_stderr):
+            print("ERROR: Stderr log file was not generated.")
             return 0.0
 
         if one_testcase.get("response", {}).get("name"):
@@ -176,24 +182,28 @@ def run_one_testcase(one_testcase: Any) -> float:
                 
                 return_score = 0.0
                 
+                # Check Result Display
                 if compare_test_results(parsed_results_dict.get("resultDisplay"),   one_testcase["response"].get("resultDisplay")):
                     return_score += 0.5
                     print("ResultDisplay match")
                 else:
                     print("ResultDisplay NO match")
                 
+                # Check Status
                 if parsed_results_dict.get("status") == "success":
                     return_score += 0.2
                     print("Status success")
                 else:
                     print("Status NO match (not success)")
                 
+                # Check Name
                 if parsed_results_dict.get("name") == one_testcase["response"].get("name"):
                     return_score += 0.15
                     print("Name match")
                 else:
                     print("Name NO match")
                                 
+                # Check Args
                 if parsed_results_dict.get("args") == one_testcase["response"].get("args"):
                     return_score += 0.15
                     print("Arguments match")
@@ -202,21 +212,31 @@ def run_one_testcase(one_testcase: Any) -> float:
                 
                 return return_score
             else:
-                print("No tool call found in log file.")
+                print("\n" + "="*50)
+                print("🚨 CRITICAL FAILURE: No tool call found in log file.")
+                print("="*50)
+                print("--- RAW AI RESPONSE (STDOUT) ---")
+                try:
+                    with open(log_file_stdout, "r") as f:
+                        print(f.read())
+                except Exception as e:
+                    print(f"Could not read stdout: {e}")
+                
+                print("\n--- RAW CLI LOGS (STDERR) ---")
+                try:
+                    with open(log_file_stderr, "r") as f:
+                        print(f.read())
+                except Exception as e:
+                    print(f"Could not read stderr: {e}")
+                print("="*50 + "\n")
                 return 0.0
         else:
             return 0.0
-    except subprocess.CalledProcessError as e:
-        print(f"gemini-cli failed with return code {e.returncode}.")
-        if check_file_exists(log_file_stderr):
-            with open(log_file_stderr, 'r') as f:
-                print("Contents of stderr:")
-                print(f.read())
     except Exception as e:
         print(f"CRITICAL: An unexpected Python error occurred: {e}")
         
     return 0.0
-  
+ 
 def main(argv: Sequence[str]) -> None:
     if len(argv) != 1:
         print("Usage: python mcpeval.py <json file>")
@@ -241,11 +261,11 @@ def main(argv: Sequence[str]) -> None:
     total_score = 0.0
     num_testcases = 0
     for one_test_case in json_golden_data:
-        print(f"Running testcase {one_test_case}")
+        print(f"\nRunning testcase {one_test_case}")
         total_score += run_one_testcase(one_test_case)
         num_testcases += 1
     
-    print(f"Number of testcases: {num_testcases}")
+    print(f"\nNumber of testcases: {num_testcases}")
     print(f"Total score: {total_score}")
     
     if num_testcases > 0:
